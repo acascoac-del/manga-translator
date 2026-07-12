@@ -1,0 +1,191 @@
+/* Progressive Manga Translator styles */
+
+/* Fade in animation for translated images */
+.manga-translated-fade-in {
+  animation: mangaFadeIn 0.8s ease-out forwards;
+}
+
+@keyframes mangaFadeIn {
+  from { opacity: 0.3; filter: brightness(1.2) contrast(0.9); }
+  to { opacity: 1; filter: none; }
+}
+
+/* Spinner overlay container */
+.manga-translate-wrapper {
+  position: relative;
+  display: inline-block;
+  vertical-align: top;
+}
+
+.manga-translate-spinner-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(15, 17, 26, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  border-radius: 4px;
+  color: #fff;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.manga-translate-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(108, 92, 231, 0.25);
+  border-top-color: #6c5ce7;
+  border-radius: 50%;
+  animation: mangaSpin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes mangaSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Injected progress dashboard (floating widget) */
+.manga-progress-widget {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 320px;
+  background: rgba(15, 17, 26, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 16px;
+  color: #f1f2f6;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  z-index: 100000;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  user-select: none;
+}
+
+.manga-progress-widget.minimized {
+  width: 60px;
+  height: 60px;
+  padding: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.manga-progress-widget.minimized:hover {
+  transform: scale(1.08) translateY(-2px);
+  box-shadow: 0 16px 48px rgba(108, 92, 231, 0.4);
+}
+
+.manga-progress-widget-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 8px;
+}
+
+.manga-progress-widget-title {
+  font-size: 14px;
+  font-weight: 700;
+  background: linear-gradient(to right, #ffffff, #a8a5ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.manga-progress-widget-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.manga-progress-btn {
+  background: none;
+  border: none;
+  color: #a4b0be;
+  cursor: pointer;
+  padding: 4px;
+  font-size: 14px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.manga-progress-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.manga-progress-stats {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.manga-progress-bar-bg {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.manga-progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #6c5ce7, #a8a5ff);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 8px rgba(108, 92, 231, 0.6);
+}
+
+.manga-progress-eta {
+  font-size: 12px;
+  color: #a4b0be;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.manga-progress-eta-badge {
+  background: rgba(108, 92, 231, 0.2);
+  color: #a8a5ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* Inner contents for minimized badge */
+.manga-progress-minimized-badge {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #a8a5ff;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.manga-progress-widget.minimized .manga-progress-minimized-badge {
+  display: flex;
+}
+
+.manga-progress-widget.minimized .manga-progress-full-content {
+  display: none;
+}

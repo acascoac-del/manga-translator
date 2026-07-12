@@ -1,0 +1,37 @@
+# =============================================================================
+# Manga Translator API - Configuration
+# =============================================================================
+
+# Pipeline settings
+pipeline:
+  batch_size: 4
+  max_image_size: 2048
+  workers: 2
+
+# Detection module
+detection:
+  model: "ogkalu/comic-text-detector"
+  confidence_threshold: 0.3
+  iou_threshold: 0.45
+
+# OCR module
+ocr:
+  model: "kha-white/manga-ocr-base"
+  confidence_threshold: 0.2
+
+# Translation module
+translation:
+  service: "mymemory"  # mymemory | google | libretranslate
+  libretranslate_url: "http://localhost:5003"
+
+# Inpainting module
+inpainting:
+  model: "lama"  # lama | opencv
+  method: "sample"  # sample | fill | blur | lama
+
+# Typesetting module
+typesetting:
+  font_size_min: 10
+  font_size_max: 28
+  font_color: "#000000"
+  text_shadow: false

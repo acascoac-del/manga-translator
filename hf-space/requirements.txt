@@ -1,0 +1,33 @@
+# =============================================================================
+# Manga Translator API - Dependencies
+# Our own engine (no manga-image-translator dependency)
+# =============================================================================
+
+# --- Web Framework ---
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+
+# --- Detection (CTD - Comic Text Detector) ---
+ultralytics==8.0.220
+
+# --- OCR (manga-ocr) ---
+manga-ocr==0.1.11
+transformers>=4.30.0,<4.45.0
+
+# --- Translation (Google free) ---
+httpx==0.25.2
+deep-translator==1.11.4
+
+# --- Image Processing ---
+opencv-python-headless==4.8.1.78
+Pillow==10.1.0
+numpy==1.26.2
+
+# --- ML & ONNX ---
+# NOTE: onnxruntime-gpu >= 1.20 requires CUDA 13. Container uses CUDA 12.1.1, so
+# we pin to the last release that ships with CUDA 12 support.
+torch
+torchvision
+onnxruntime-gpu==1.19.2
+huggingface_hub

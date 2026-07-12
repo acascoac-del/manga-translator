@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root {
+      --bg-primary: #0f111a;
+      --bg-glass: rgba(30, 32, 50, 0.6);
+      --accent: #6c5ce7;
+      --accent-glow: rgba(108, 92, 231, 0.4);
+      --text-main: #f1f2f6;
+      --text-muted: #a4b0be;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --success: #2ed573;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      width: 320px;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      overflow: hidden;
+      padding: 16px;
+    }
+
+    /* Glassmorphism card wrapper */
+    .container {
+      background: var(--bg-glass);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+    }
+
+    .logo-container {
+      background: linear-gradient(135deg, var(--accent), #a8a5ff);
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #fff;
+      font-size: 18px;
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      background: linear-gradient(to right, #fff, #a8a5ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    select, input {
+      width: 100%;
+      background: rgba(15, 17, 26, 0.7);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-main);
+      padding: 8px 12px;
+      font-size: 13px;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    select:focus, input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 8px var(--accent-glow);
+    }
+
+    .btn-translate {
+      display: block;
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent), #4834d4);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 18px;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-translate:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(108, 92, 231, 0.4);
+      background: linear-gradient(135deg, #786df7, #4834d4);
+    }
+
+    .btn-translate:active {
+      transform: translateY(1px);
+    }
+
+    .ollama-settings {
+      display: none;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px dashed var(--border-color);
+      border-radius: 8px;
+      padding: 10px;
+      margin-top: 8px;
+      animation: slideDown 0.3s ease-out forwards;
+    }
+
+    @keyframes slideDown {
+      from { opacity: 0; transform: translateY(-8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      background: rgba(46, 213, 115, 0.15);
+      color: var(--success);
+      padding: 2px 8px;
+      border-radius: 12px;
+      margin-top: 4px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.9); opacity: 0.6; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.6; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo-container">文</div>
+      <div>
+        <h1>MangaTranslatorAR</h1>
+        <div class="status-badge">
+          <div class="status-dot"></div>
+          <span>API Local Conectada</span>
+        </div>
+      </div>
+    </header>
+
+    <div class="form-group">
+      <label for="targetLang">Idioma Destino</label>
+      <select id="targetLang">
+        <option value="es" selected>Español (ES)</option>
+        <option value="en">Inglés (EN)</option>
+        <option value="pt">Portugués (PT)</option>
+        <option value="fr">Francés (FR)</option>
+        <option value="de">Alemán (DE)</option>
+        <option value="it">Italiano (IT)</option>
+        <option value="ru">Ruso (RU)</option>
+        <option value="zh">Chino (ZH)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label for="translator">Motor de Traducción</label>
+      <select id="translator">
+        <option value="google">Google Translate (Gratis)</option>
+        <option value="baidu">Baidu Translate (Gratis)</option>
+        <option value="groq">Groq (IA Cloud)</option>
+        <option value="ollama">Ollama (IA Local)</option>
+        <option value="libretranslate">LibreTranslate (Local)</option>
+      </select>
+    </div>
+
+    <div id="groqSettings" class="ollama-settings">
+      <div class="form-group">
+        <label for="groqApiKey">API Key de Groq</label>
+        <input type="password" id="groqApiKey" placeholder="gsk_..." autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label for="groqModel">Modelo de Groq</label>
+        <select id="groqModel">
+          <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B Instant</option>
+          <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</option>
+          <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
+          <option value="gemma2-9b-it">Gemma 2 9B</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="ollamaSettings" class="ollama-settings">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label for="ollamaModel">Modelo de Ollama</label>
+        <select id="ollamaModel">
+          <!-- Will be loaded dynamically -->
+          <option value="gemma3:4b">Cargando modelos...</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="libreTranslateSettings" class="ollama-settings">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label for="libretranslateHost">Host LibreTranslate</label>
+        <input type="text" id="libretranslateHost" value="http://localhost:5000">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="apiPreset">Servidor API</label>
+      <select id="apiPreset">
+        <option value="http://localhost:8001">Local (localhost:8001)</option>
+        <option value="https://8001-deploy-model-devbox.litng.ai">Lightning AI (Nube)</option>
+        <option value="custom">Personalizado...</option>
+      </select>
+    </div>
+
+    <div class="form-group" id="apiCustomGroup" style="display: none;">
+      <label for="apiUrl">Endpoint API</label>
+      <input type="text" id="apiUrl" value="http://localhost:8001">
+    </div>
+
+    <button id="btnTranslate" class="btn-translate">Traducir Página Completa</button>
+
+    <footer>
+      Versión local 1.0
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

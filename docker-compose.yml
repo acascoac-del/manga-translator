@@ -1,0 +1,66 @@
+services:
+  manga-translator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - CUDA_VERSION=12.1.1
+        - PYTHON_VERSION=3.11
+    container_name: manga-translator-api
+    restart: unless-stopped
+    ports:
+      - "8001:8002"
+    volumes:
+      # Bind mount models from host (persistent across rebuilds)
+      - ./models:/app/models/weights
+      # Config files
+      - ./configs:/app/configs:ro
+      # User fonts
+      - ./fonts:/app/fonts:ro
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+      - MODEL_DIR=/app/models/weights
+      - CACHE_DIR=/app/models/cache
+      - MAX_VRAM_MB=4096
+      - BATCH_SIZE=4
+      - WORKERS=2
+      - LOG_LEVEL=info
+      - OLLAMA_HOST=http://host.docker.internal:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - manga-net
+
+  # Optional: Redis for task queue (Celery)
+  redis:
+    image: redis:7-alpine
+    container_name: manga-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - manga-net
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  manga-net:
+    driver: bridge
