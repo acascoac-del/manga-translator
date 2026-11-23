@@ -2,6 +2,8 @@
 
 Referencia: https://github.com/acascoac-del/manga-translator/issues/1
 
+La [integración posterior del lector 0.3.1 y su validación](../chrome-extension/local-reader/README.md) están documentadas junto al código. Este documento conserva el estado de la primera entrega.
+
 ## Auditoría y alcance
 
 El HEAD inicial eddfac7 contiene MangaTranslatorAR 1.0, una extensión MV3 conectada a una API Python. No contiene la versión 0.3.1 ni Tesseract jpn_vert. El Issue #1 confirma que esa versión se entregó externamente. El usuario identificó su fuente en `C:\Users\chevi\Downloads\MangaTranslate-AI-0.3.1-SAFE-SOURCE`, inaccesible desde Codex Cloud. Importar esa fuente es un requisito para corregir y reproducir los fallos específicos de 0.3.1. No se reemplazó la aplicación existente ni se cambió su numeración.

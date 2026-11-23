@@ -15,6 +15,12 @@ jobs:
         with:
           node-version: '24'
       - run: node --test tests/local-ai.test.mjs
+      - name: Build and test the standalone MV3 reader
+        working-directory: chrome-extension/local-reader
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+          npm run check
       - name: Check MV3 manifest and local module syntax
         run: |
           node -e "const m=require('./chrome-extension/manifest.json'); if(m.manifest_version!==3) process.exit(1)"

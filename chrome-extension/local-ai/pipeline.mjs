@@ -17,7 +17,7 @@ export function validateJapanese(ocr) {
   const text = ocr.text.replace(/\s/gu, '');
   if (text.length < 2 || text.length > 500) return 'invalid_text_length';
   const japanese = (text.match(/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}ー々〆]/gu) || []).length;
-  if (japanese / text.length < 0.7 || /[A-Za-z\p{Script=Cyrillic}]/u.test(text)) return 'mixed_or_non_japanese';
+  if (japanese / text.length < 0.7 || /[\p{Script=Latin}\p{Script=Cyrillic}]/u.test(text)) return 'mixed_or_non_japanese';
   return null;
 }
 // Use only within an already segmented bubble; columns read right to left, then top to bottom.
