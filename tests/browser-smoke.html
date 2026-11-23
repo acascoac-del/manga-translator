@@ -9,7 +9,7 @@ try {
  const undo=showReviewedTranslation(image,record,{confirmed:true});
  if(image.src!==src||!document.querySelector('aside'))throw Error('image changed or no note');
  undo();if(document.querySelector('aside')||image.src!==src)throw Error('undo failed');
- let availability;try{const t=await browserTranslator();availability='available';t.destroy?.();}catch(e){availability=e.message;}
+ let availability;try{const t=await browserTranslator(globalThis.Translator, 300);availability='available';t.destroy?.();}catch(e){availability=e.message;}
  document.querySelector('#result').textContent='PASS: confirmation, reversible annotation, original image preserved; '+availability;
 }catch(e){document.querySelector('#result').textContent='FAIL: '+e.message;}
 </script></body></html>

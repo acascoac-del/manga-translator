@@ -40,3 +40,7 @@ test('missing model errors and untranslated outputs remain rejected',async()=>{
  }
 });
 test('billing remains disabled',()=>{assert.equal(PLAN.billingActive,false);assert.equal(PLAN.premiumUSDMonthly,2.99);});
+
+test('model availability timeout fails closed', async()=>{
+ await assert.rejects(browserTranslator({availability:()=>new Promise(()=>{}),create:()=>{throw Error('must not create');}},10),/local_translation_timeout/);
+});

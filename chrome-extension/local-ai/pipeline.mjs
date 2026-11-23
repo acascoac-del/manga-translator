@@ -24,10 +24,17 @@ export function validateJapanese(ocr) {
 export function orderVerticalColumns(columns) {
   return [...columns].sort((a, b) => b.bbox[0] - a.bbox[0] || a.bbox[1] - b.bbox[1]);
 }
-export async function browserTranslator(api = globalThis.Translator) {
+export async function browserTranslator(api = globalThis.Translator, timeoutMs = 8000) {
   const options = { sourceLanguage: 'ja', targetLanguage: 'es' };
   if (!api || typeof api.availability !== 'function' || typeof api.create !== 'function') throw new Error('local_translation_unavailable');
-  const status = await api.availability(options);
+  let timer;
+  let status;
+  try {
+    status = await Promise.race([
+      api.availability(options),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('local_translation_timeout')), timeoutMs); }),
+    ]);
+  } finally { clearTimeout(timer); }
   // Never trigger a model download without a separate user action.
   if (status !== 'available') throw new Error(`local_translation_${status}`);
   return api.create(options);

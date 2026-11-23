@@ -33,3 +33,10 @@ Desde la raíz: `node --test tests/local-ai.test.mjs`. Son pruebas unitarias con
 `tests/browser-smoke.html` permite comprobar en Chromium confirmación, creación y retirada de anotación y conservación de imagen. Servir la raíz con `python -m http.server 8765 --bind 127.0.0.1` y abrir internamente `/tests/browser-smoke.html`. Su prueba del traductor informa disponibilidad; no inventa una salida. Esto no sustituye cargar la extensión MV3 en Chrome y validar tres páginas reales.
 
 Para desarrollar sin ZIP: clonar una vez o abrir el repositorio en Codex, seleccionar la rama `develop/mangatranslate-ai-0.4`, editar, ejecutar pruebas, hacer commits y abrir PR contra main. En la PC, `git pull` y Recargar en chrome://extensions actualiza la carpeta `chrome-extension/` cargada como descomprimida. Chrome aún requiere acceso a una carpeta local durante desarrollo; GitHub/Codex no actualizan automáticamente una extensión instalada. No se publican pagos ni Chrome Web Store en esta fase.
+
+## Resultado de esta instancia
+
+- 9/9 pruebas unitarias aprobadas, incluida disponibilidad del modelo que no responde.
+- Sintaxis de los módulos y manifiesto MV3 verificadas; `git diff --check` sin errores.
+- Chromium headless solicitó la página y ambos módulos, pero no produjo resultado DOM antes del límite externo de 15/20 segundos. Ensayo incompleto: no se afirma que el overlay haya pasado la prueba de navegador ni que la traducción local funcione aquí.
+- La rama se publicó con Git HTTPS. La creación automática de PR mediante `gh pr create` recibió `Forbidden` de `api.github.com/graphql`; no hay PR creado confirmado. La importación de 0.3.1 y la evaluación real siguen pendientes.
