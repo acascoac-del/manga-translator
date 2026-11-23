@@ -1,0 +1,5 @@
+# Privacidad — MangaTranslate AI 0.3
+
+En esta versión experimental, la extensión no tiene cuentas, anuncios, sistemas de telemetría ni sistemas de pago. Las imágenes seleccionadas se descargan directamente desde el sitio de origen hacia el navegador y se guardan temporalmente en `chrome.storage.local` para cargarlas en el lector. Las imágenes pueden permanecer en ese almacenamiento hasta reemplazarse o hasta que el usuario borre los datos de la extensión. OCR: procesamiento local en Tesseract WebAssembly. Traducción: Chrome Translator API local cuando está disponible; Chrome puede descargar paquetes de idiomas inicialmente. No usamos un servidor propio para el reconocimiento ni para traducir. La descarga inicial de paquetes Tesseract se hace al instalar los archivos mediante npm en el equipo del usuario, no durante la ejecución de Chrome.
+
+El usuario puede retirar permisos de sitios desde Chrome, y borrar datos desinstalando la extensión. No usar imágenes privadas o sensibles en entornos compartidos sin borrar datos.

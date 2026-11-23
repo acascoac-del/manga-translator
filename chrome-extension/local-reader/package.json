@@ -1,0 +1,6 @@
+{
+  "name":"mangatranslate-ai", "private":true, "version":"0.3.0",
+  "description":"MangaTranslate AI - local OCR Chrome MV3",
+  "scripts":{"build":"node build.mjs","check":"node tests/check.mjs"},
+  "dependencies":{"tesseract.js":"5.1.1","tesseract.js-core":"5.0.0"}
+}
