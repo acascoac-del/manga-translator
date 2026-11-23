@@ -1,0 +1,27 @@
+name: Local AI safety checks
+on:
+  push:
+    paths: ['chrome-extension/**', 'tests/**', '.github/workflows/local-ai.yml']
+  pull_request:
+    paths: ['chrome-extension/**', 'tests/**', '.github/workflows/local-ai.yml']
+permissions:
+  contents: read
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test tests/local-ai.test.mjs
+      - name: Build and test the standalone MV3 reader
+        working-directory: chrome-extension/local-reader
+        run: |
+          npm ci --ignore-scripts
+          npm run build
+          npm run check
+      - name: Check MV3 manifest and local module syntax
+        run: |
+          node -e "const m=require('./chrome-extension/manifest.json'); if(m.manifest_version!==3) process.exit(1)"
+          for file in chrome-extension/local-ai/*.mjs; do node --check "$file"; done
