@@ -1,0 +1,15 @@
+<!doctype html><html><body><img id="original" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="><pre id="result">RUNNING</pre><script type="module">
+import {showReviewedTranslation} from '/chrome-extension/local-ai/overlay.mjs';
+import {browserTranslator} from '/chrome-extension/local-ai/pipeline.mjs';
+try {
+ const image=document.querySelector('img'), src=image.src;
+ const record={status:'pending_review',reason:null,translation:'<img src=x onerror=alert(1)> Hola'};
+ let blocked=false;try{showReviewedTranslation(image,record);}catch{blocked=true;}
+ if(!blocked)throw Error('confirmation bypass');
+ const undo=showReviewedTranslation(image,record,{confirmed:true});
+ if(image.src!==src||!document.querySelector('aside'))throw Error('image changed or no note');
+ undo();if(document.querySelector('aside')||image.src!==src)throw Error('undo failed');
+ let availability;try{const t=await browserTranslator();availability='available';t.destroy?.();}catch(e){availability=e.message;}
+ document.querySelector('#result').textContent='PASS: confirmation, reversible annotation, original image preserved; '+availability;
+}catch(e){document.querySelector('#result').textContent='FAIL: '+e.message;}
+</script></body></html>
