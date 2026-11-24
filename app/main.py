@@ -3,9 +3,11 @@ Manga Translator API - Our own engine.
 Pipeline: Detect → OCR → Translate → Inpaint → Render
 """
 
+import asyncio
 import base64
 import io
 import logging
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -26,13 +28,36 @@ from app.engine.pipeline import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("manga-api")
 
+# Detection, OCR, inpainting and local LLM inference share the same GPU.  Two
+# complete pipelines in parallel are slower on consumer GPUs and can leave the
+# browser/desktop unresponsive.  Serialize page pipelines while still allowing
+# health/model-list requests to respond immediately.
+_pipeline_lock = asyncio.Lock()
+
+
+async def _run_pipeline_serialized(b64: str, config: PipelineConfig):
+    async with _pipeline_lock:
+        return await run_pipeline(b64, config)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("[API] Starting MangaTranslatorAR API...")
     log.info(f"[API] Device: {DEVICE}")
     await initialize()
-    log.info("[API] Models loaded. Server ready.")
+    # Loading the GGUF from the Windows bind mount takes around 20-25 seconds.
+    # Pay that cost while the server starts instead of making the first manga
+    # page appear stuck on "thinking". Other providers still release the model
+    # at the beginning of their first request.
+    if os.getenv("PRELOAD_LLAMACPP", "1").strip().lower() not in {"0", "false", "no"}:
+        try:
+            from app.engine.translation import llamacpp
+
+            log.info("[API] Preloading llama.cpp into VRAM...")
+            await llamacpp.preload()
+        except Exception as exc:
+            log.warning("[API] llama.cpp preload failed: %s", exc)
+    log.info("[API] Core image models loaded. Server ready.")
     yield
     log.info("[API] Shutting down...")
     await cleanup()
@@ -66,10 +91,6 @@ async def add_headers(request: Request, call_next):
     return response
 
 
-# =============================================================================
-# Health
-# =============================================================================
-
 @app.get("/health")
 async def health():
     return {
@@ -80,8 +101,8 @@ async def health():
         "pipeline": ["detection", "ocr", "translation", "inpainting", "rendering"],
         "defaults": {
             "detector": "ctd",
-            "ocr": "manga_ocr",
-            "translator": "google",
+            "ocr": "auto",
+            "translator": "llamacpp",
             "inpainter": "lama",
             "renderer": "manga2eng",
             "target_lang": "es",
@@ -89,33 +110,22 @@ async def health():
     }
 
 
-# =============================================================================
-# Ollama Models
-# =============================================================================
-
-@app.get("/ollama/models")
-async def get_ollama_models():
-    """Retrieve the list of models pulled in the local Ollama instance."""
-    from app.engine.translation.ollama import _get_ollama_host
-    api_host = _get_ollama_host()
-    url = f"{api_host.rstrip('/')}/api/tags"
+@app.get("/lmstudio/models")
+async def get_lmstudio_models():
+    from app.engine.translation.lmstudio import _get_lmstudio_host, _lmstudio_api_url
+    api_host = _get_lmstudio_host()
+    url = _lmstudio_api_url(api_host, "models")
     try:
         async with httpx.AsyncClient(timeout=4.0) as client:
             resp = await client.get(url)
             resp.raise_for_status()
             data = resp.json()
-            # Extract names
-            models = [m.get("name") for m in data.get("models", [])]
-            return {"models": models}
+            models = [item.get("id") for item in data.get("data", []) if item.get("id")]
+            return {"models": models, "host": api_host}
     except Exception as e:
-        log.error(f"Failed to query Ollama models at {url}: {e}")
-        # Return fallback models to choose from if Ollama is not reachable or fails
-        return {"models": ["gemma3:4b", "llama3", "gemma:2b", "phi3"]}
+        log.error(f"Failed to query LM Studio models at {url}: {e}")
+        raise HTTPException(503, "LM Studio service is unavailable")
 
-
-# =============================================================================
-# Translate
-# =============================================================================
 
 @app.post("/translate")
 async def translate_multipart(
@@ -123,19 +133,17 @@ async def translate_multipart(
     target_lang: str = Form("es"),
     source_lang: str = Form("auto"),
     detector: str = Form("ctd"),
-    ocr: str = Form("manga_ocr"),
-    translator: str = Form("google"),
+    ocr: str = Form("auto"),
+    translator: str = Form("llamacpp"),
     inpainter: str = Form("lama"),
     renderer: str = Form("manga2eng"),
-    font_family: str = Form("anime_ace_3"),
+    font_family: str = Form("BarlowSemiCondensed-Medium"),
     font_size: int = Form(0),
-    ollama_model: str = Form("llama3"),
-    ollama_host: str = Form(""),
-    libretranslate_host: str = Form("http://localhost:5000"),
+    lmstudio_model: str = Form("auto"),
+    lmstudio_host: str = Form(""),
     groq_api_key: str = Form(""),
-    groq_model: str = Form("llama-3.1-8b-instant"),
+    groq_model: str = Form("auto"),
 ):
-    """Translate a manga image (FormData)."""
     raw = await image.read()
     if not raw:
         raise HTTPException(400, "Empty image")
@@ -144,21 +152,20 @@ async def translate_multipart(
     config = PipelineConfig(
         detector=detector, ocr=ocr, translator=translator,
         inpainter=inpainter, renderer=renderer,
-        source_lang=source_lang, target_lang=target_lang,
+        source_lang=source_lang or "auto", target_lang=target_lang,
         font_family=font_family, font_size=font_size,
-        ollama_model=ollama_model, ollama_host=ollama_host if ollama_host else None,
-        libretranslate_host=libretranslate_host,
+        lmstudio_model=lmstudio_model,
+        lmstudio_host=lmstudio_host if lmstudio_host else None,
         groq_api_key=groq_api_key if groq_api_key else None,
         groq_model=groq_model if groq_model else None,
     )
 
-    result = await run_pipeline(b64, config)
+    result = await _run_pipeline_serialized(b64, config)
     return _format_result(result)
 
 
 @app.post("/translate/json")
 async def translate_json(req: Request):
-    """Translate from JSON body with base64 image."""
     body = await req.json()
     b64 = body.get("image")
     if not b64:
@@ -169,60 +176,55 @@ async def translate_json(req: Request):
 
     config = PipelineConfig(
         detector=body.get("detector", "ctd"),
-        ocr=body.get("ocr", "manga_ocr"),
-        translator=body.get("translator", "google"),
+        ocr=body.get("ocr", "auto"),
+        translator=body.get("translator", "llamacpp"),
         inpainter=body.get("inpainter", "lama"),
         renderer=body.get("renderer", "manga2eng"),
-        source_lang=body.get("source_lang", "auto"),
+        source_lang=body.get("source_lang") or "auto",
         target_lang=body.get("target_lang", "es"),
-        font_family=body.get("font_family", "anime_ace_3"),
+        font_family=body.get("font_family", "BarlowSemiCondensed-Medium"),
         font_size=int(body.get("font_size", 0)),
-        ollama_model=body.get("ollama_model", "llama3"),
-        ollama_host=None,  # Always resolved server-side from OLLAMA_HOST env var
-        libretranslate_host=body.get("libretranslate_host", "http://localhost:5000"),
+        lmstudio_model=body.get("lmstudio_model", body.get("ollama_model", "auto")),
+        lmstudio_host=body.get("lmstudio_host", body.get("ollama_host")),
         groq_api_key=body.get("groq_api_key"),
-        groq_model=body.get("groq_model", "llama-3.1-8b-instant"),
+        groq_model=body.get("groq_model", "auto"),
     )
 
-    result = await run_pipeline(b64, config)
+    result = await _run_pipeline_serialized(b64, config)
     return _format_result(result)
 
 
 @app.post("/translate/batch")
 async def translate_batch(req: Request):
-    """Translate multiple images in parallel."""
-    import asyncio
-
     body = await req.json()
     images = body.get("images")
     if not images or not isinstance(images, list):
         raise HTTPException(400, "Field 'images' required (array of base64)")
     if len(images) > 50:
-        raise HTTPException(400, f"Max 50 images per batch")
+        raise HTTPException(400, "Max 50 images per batch")
 
     config = PipelineConfig(
         detector=body.get("detector", "ctd"),
-        ocr=body.get("ocr", "manga_ocr"),
+        ocr=body.get("ocr", "auto"),
         translator=body.get("translator", "google"),
         inpainter=body.get("inpainter", "lama"),
         renderer=body.get("renderer", "manga2eng"),
-        source_lang=body.get("source_lang", "auto"),
+        source_lang=body.get("source_lang") or "auto",
         target_lang=body.get("target_lang", "es"),
-        font_family=body.get("font_family", "anime_ace_3"),
+        font_family=body.get("font_family", "BarlowSemiCondensed-Medium"),
         font_size=int(body.get("font_size", 0)),
-        ollama_model=body.get("ollama_model", "llama3"),
-        ollama_host=body.get("ollama_host", None),
-        libretranslate_host=body.get("libretranslate_host", "http://localhost:5000"),
+        lmstudio_model=body.get("lmstudio_model", body.get("ollama_model", "auto")),
+        lmstudio_host=body.get("lmstudio_host", body.get("ollama_host")),
         groq_api_key=body.get("groq_api_key"),
-        groq_model=body.get("groq_model", "llama-3.1-8b-instant"),
+        groq_model=body.get("groq_model", "auto"),
     )
 
     batch_start = time.time()
 
-    async def process_one(index, b64):
-        if isinstance(b64, str) and "," in b64 and b64.startswith("data:"):
-            b64 = b64.split(",", 1)[1]
-        result = await run_pipeline(b64, config)
+    async def process_one(index, b64_item):
+        if isinstance(b64_item, str) and "," in b64_item and b64_item.startswith("data:"):
+            b64_item = b64_item.split(",", 1)[1]
+        result = await _run_pipeline_serialized(b64_item, config)
         item = {"index": index, "success": result.success, "processing_time_ms": result.processing_time_ms}
         if result.success:
             item["translated_image"] = result.translated_b64
@@ -246,7 +248,6 @@ async def translate_batch(req: Request):
 
 
 def _format_result(result: PipelineResult):
-    """Format pipeline result as JSON response."""
     if not result.success:
         return JSONResponse(status_code=500, content={
             "success": False,
@@ -259,6 +260,7 @@ def _format_result(result: PipelineResult):
         "translated_image": result.translated_b64,
         "processing_time_ms": result.processing_time_ms,
         "region_count": len(result.regions),
+        "detected_source_lang": result.detected_source_lang,
         "regions": result.regions,
         "original_image": result.original_b64,
     })

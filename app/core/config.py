@@ -42,8 +42,8 @@ class Settings:
     LIBRETRANSLATE_URL = os.environ.get("LIBRETRANSLATE_URL", "http://localhost:5003")
     GOOGLE_TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
     MYMEMORY_URL = "https://api.mymemory.translated.net/get"
-    OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:8080")
-    OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3")
+    LMSTUDIO_HOST = os.environ.get("LMSTUDIO_HOST", "http://localhost:1234/v1")
+    LMSTUDIO_MODEL = os.environ.get("LMSTUDIO_MODEL", "auto")
 
     # --- Inpainting ---
     INPAINT_MODEL = "lama"

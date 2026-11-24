@@ -1,0 +1,52 @@
+name: manga-commercial
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - database:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+  migrate:
+    build: .
+    env_file: .env
+    command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py collectstatic --noinput"]
+    volumes: ["data:/srv/data", "static:/srv/staticfiles"]
+    depends_on:
+      db: {condition: service_healthy}
+  web:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes: ["data:/srv/data", "static:/srv/staticfiles"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+    # No public web/db ports. Only the reverse proxy is exposed.
+  dispatcher:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    command: ["python", "manage.py", "dispatch_jobs"]
+    volumes: ["data:/srv/data"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file: .env
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web]
+volumes:
+  database:
+  data:
+  static:
+  caddy_data:
+  caddy_config:

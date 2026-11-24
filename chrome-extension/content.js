@@ -1,5 +1,6 @@
 // Global states
 let activeProgressWidget = null;
+let translationRunActive = false;
 let activeWidgetData = {
   total: 0,
   completed: 0,
@@ -10,20 +11,34 @@ let activeWidgetData = {
 // Listen for messages from popup or background scripts
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'translate_page') {
+    if (translationRunActive) {
+      sendResponse({ success: false, reason: 'Translation already running' });
+      return;
+    }
     const images = discoverImages();
     if (images.length === 0) {
       sendResponse({ success: false, reason: 'No images found' });
       return;
     }
 
+    translationRunActive = true;
     sendResponse({ success: true, count: images.length });
-    startProgressiveTranslation(images, request);
+    startProgressiveTranslation(images, request).finally(() => {
+      translationRunActive = false;
+    });
   } 
   else if (request.action === 'translate_single_image') {
+    if (translationRunActive) {
+      sendResponse({ success: false, reason: 'Translation already running' });
+      return;
+    }
     const imgEl = findImageElementByUrl(request.imageUrl);
     if (imgEl) {
+      translationRunActive = true;
       sendResponse({ success: true });
-      translateSingleImage(imgEl, request);
+      translateSingleImage(imgEl, request).finally(() => {
+        translationRunActive = false;
+      });
     } else {
       sendResponse({ success: false, reason: 'Image element not found in DOM' });
     }
@@ -33,19 +48,59 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // Discover all large images on the webpage (ignores icons, logos, ads)
 function discoverImages() {
-  const images = Array.from(document.querySelectorAll('img'));
+  // Prefer a dedicated chapter reader when the site exposes one. Looking at
+  // every <img> also sends logos, loading SVGs, ad pixels and credit banners
+  // to the backend; on mgeko that inflated a 22-page chapter to 26 jobs and
+  // produced invalid-image errors before the real pages started.
+  const readerSelectors = [
+    '#chapter-reader',
+    '.chapter-reader',
+    '.reading-content',
+    '.reader-content',
+    '#readerarea',
+    '#reader-area'
+  ];
+  let images = [];
+  for (const selector of readerSelectors) {
+    const root = document.querySelector(selector);
+    if (!root) continue;
+    const scoped = Array.from(root.querySelectorAll('img'));
+    if (scoped.length >= 2) {
+      images = scoped;
+      break;
+    }
+  }
+  if (images.length === 0) {
+    images = Array.from(document.querySelectorAll('img'));
+  }
+
   return images.filter(img => {
-    // Basic heuristics for comic/manga pages
+    // Ignore already translated
+    if (img.dataset.mangaTranslated === 'true') return false;
+    if (img.dataset.mangaTranslating === 'true') return false;
+
+    const hasLazySrc = img.hasAttribute('data-src') || 
+                       img.hasAttribute('data-original') || 
+                       img.hasAttribute('data-lazy-src') ||
+                       img.hasAttribute('data-url') ||
+                       img.hasAttribute('data-full-url') ||
+                       img.hasAttribute('data-cdn-src') ||
+                       img.hasAttribute('srcset');
+
     const rect = img.getBoundingClientRect();
     const w = img.naturalWidth || rect.width || img.width;
     const h = img.naturalHeight || rect.height || img.height;
+    const source = (
+      img.currentSrc || img.src || img.dataset.src || img.dataset.original || ''
+    ).toLowerCase();
+
+    if (/\.svg(?:[?#]|$)/.test(source)) return false;
+    if (/(?:^|[\/_-])(loading|loader|logo|credits?)(?:[\/_\-.]|$)/.test(source)) {
+      return false;
+    }
     
-    // Ignore small icons or thin borders (unless they are placeholders hiding a real image)
-    const hasLazySrc = img.hasAttribute('data-src') || img.hasAttribute('data-original') || img.hasAttribute('data-lazy-src');
-    if (!hasLazySrc && (w < 200 || h < 200)) return false;
-    
-    // Ignore already translated
-    if (img.dataset.mangaTranslated === 'true') return false;
+    // If it has lazy src attributes or reasonable dimensions, consider it a manga page
+    if (!hasLazySrc && (w < 400 || h < 500)) return false;
     
     return true;
   });
@@ -224,21 +279,63 @@ function removeLoaderOverlay(imgEl) {
 
 // Extract base64 representation of image source
 async function getBase64FromImage(imgEl) {
-  // Buscar la URL real oculta por el Lazy Loading
-  const src = imgEl.getAttribute('data-src') || 
-              imgEl.getAttribute('data-original') || 
-              imgEl.getAttribute('data-lazy-src') || 
-              imgEl.src;
-  
-  // 1. Handle data URLs directly
-  if (src.startsWith('data:')) {
-    return src.split(',')[1];
-  }
-  
-  // 2. Handle blob URLs (background scripts cannot fetch blob URLs from pages)
-  if (src.startsWith('blob:')) {
+  // Extract candidate URLs from common lazy-loading attributes
+  const candidates = [
+    // Always prefer the immutable source saved before the first translation.
+    // This prevents translating an already rendered image again, which
+    // otherwise accumulates multiple Spanish texts on the same bubble.
+    imgEl.dataset.originalSrc,
+    imgEl.getAttribute('data-src'),
+    imgEl.getAttribute('data-original'),
+    imgEl.getAttribute('data-lazy-src'),
+    imgEl.getAttribute('data-url'),
+    imgEl.getAttribute('data-full-url'),
+    imgEl.getAttribute('data-cdn-src'),
+    imgEl.src
+  ].filter(Boolean);
+
+  // Find the first valid non-placeholder URL
+  let realSrc = candidates.find(url => {
+    if (!url) return false;
+    if (url.startsWith('data:')) {
+      // Ignore tiny placeholder data URIs (e.g. 1x1 transparent gifs < 500 chars)
+      return url.length > 500;
+    }
+    const lower = url.toLowerCase();
+    return !lower.includes('placeholder') && !lower.includes('loading') && !lower.includes('blank.gif') && !lower.includes('transparent.png');
+  }) || imgEl.src;
+
+  // Convert relative URL to absolute URL to prevent service worker fetch failure
+  if (realSrc && !realSrc.startsWith('data:') && !realSrc.startsWith('blob:')) {
     try {
-      const response = await fetch(src);
+      realSrc = new URL(realSrc, window.location.href).href;
+    } catch (err) {
+      console.warn("Could not resolve absolute URL:", realSrc, err);
+    }
+  }
+
+  // Ensure image is loaded in memory if it hasn't loaded yet
+  if (!imgEl.complete || imgEl.naturalWidth === 0) {
+    await new Promise((resolve) => {
+      const tempImg = new Image();
+      tempImg.crossOrigin = 'anonymous';
+      tempImg.onload = () => resolve();
+      tempImg.onerror = () => resolve();
+      tempImg.src = realSrc;
+      // Timeout after 5 seconds if image fails to load
+      setTimeout(resolve, 5000);
+    });
+  }
+
+  // 1. Handle non-placeholder data URLs directly
+  if (realSrc.startsWith('data:')) {
+    return realSrc.split(',')[1];
+  }
+
+  // 2. Handle blob URLs (background scripts cannot fetch blob URLs from pages)
+  if (realSrc.startsWith('blob:')) {
+    try {
+      const response = await fetch(realSrc);
       const blob = await response.blob();
       return await new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -250,17 +347,18 @@ async function getBase64FromImage(imgEl) {
       console.warn("Failed to read blob URL, falling back to canvas", e);
     }
   }
-  
+
   // 3. Ask background service worker to fetch and convert to base64 bypassing CORS
   try {
     return await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({
         action: 'fetch_image_base64',
-        url: src
+        url: realSrc,
+        referer: window.location.href
       }, (response) => {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
-        } else if (response && response.success) {
+        } else if (response && response.success && response.base64) {
           resolve(response.base64);
         } else {
           reject(new Error(response ? response.error : 'Failed to fetch image'));
@@ -268,30 +366,73 @@ async function getBase64FromImage(imgEl) {
       });
     });
   } catch (e) {
-    console.warn("Background fetch failed for image, falling back to canvas", src, e);
-    // 4. Fallback: Draw to canvas
-    return new Promise((resolve, reject) => {
-      try {
-        const canvas = document.createElement('canvas');
-        // Si es un placeholder, el naturalWidth será 0, forzamos un mínimo para evitar errores
-        canvas.width = imgEl.naturalWidth || imgEl.width || 800;
-        canvas.height = imgEl.naturalHeight || imgEl.height || 1200;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
-        const dataURL = canvas.toDataURL('image/jpeg', 0.9);
-        resolve(dataURL.split(',')[1]);
-      } catch (canvasErr) {
-        reject(new Error(`Canvas fallback failed: ${canvasErr.message}`));
-      }
-    });
+    console.warn("Background fetch failed for image, falling back to canvas", realSrc, e);
   }
+
+  // 4. Fallback: Draw directly to canvas
+  return new Promise((resolve, reject) => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = imgEl.naturalWidth || imgEl.width || 800;
+      canvas.height = imgEl.naturalHeight || imgEl.height || 1200;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height);
+      const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+      resolve(dataURL.split(',')[1]);
+    } catch (canvasErr) {
+      reject(new Error(`Canvas fallback failed: ${canvasErr.message}`));
+    }
+  });
+}
+
+// Send one page to the background worker. A page must not be silently skipped
+// because the service worker was briefly suspended or the local API restarted
+// while a long request was in flight.
+async function requestImageTranslation(config, payload, maxAttempts = 2) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          action: 'translate_image',
+          apiUrl: config.apiUrl,
+          payload
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+          } else if (response && response.success) {
+            resolve(response.data);
+          } else {
+            reject(new Error(response ? response.error : 'Failed to translate image via background worker'));
+          }
+        });
+      });
+    } catch (error) {
+      lastError = error;
+      if (attempt >= maxAttempts) break;
+
+      console.warn(
+        `Translation request failed (attempt ${attempt}/${maxAttempts}); retrying page`,
+        error
+      );
+      // Give a restarted API/service worker time to become ready without
+      // blocking the page or advancing the chapter progress counter.
+      await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+  }
+
+  throw lastError || new Error('Failed to translate image');
 }
 
 // Progressive image translation orchestrator
 async function startProgressiveTranslation(images, config) {
   createProgressWidget(images.length);
 
-  const concurrency = 2; // Run 2 parallel requests to avoid overloading local CPU/GPU/Ollama
+  // The API serializes the shared detection/OCR/inpainting pipeline for every
+  // engine. A second browser worker can only queue another full base64 page;
+  // it does not improve throughput and needlessly raises browser/API memory.
+  const concurrency = Math.min(images.length, 1);
   let index = 0;
   
   // Iniciar un ping de latido cada 20 segundos para mantener vivo el background.js
@@ -304,6 +445,7 @@ async function startProgressiveTranslation(images, config) {
       const currentIndex = index++;
       const imgEl = images[currentIndex];
       const imgStartTime = Date.now();
+      imgEl.dataset.mangaTranslating = 'true';
       
       addLoaderOverlay(imgEl);
       
@@ -313,39 +455,32 @@ async function startProgressiveTranslation(images, config) {
         // Prepare API request payload
         const payload = {
           image: base64Str,
+          // Detect every page independently. A stale manual setting or one
+          // atypical page must never route later English pages through the
+          // Japanese OCR model.
+          source_lang: config.sourceLang === 'ja' ? 'ja' : 'auto',
           target_lang: config.targetLang,
           translator: config.translator,
-          ollama_model: config.ollamaModel,
-          ollama_host: config.ollamaHost,
-          libretranslate_host: config.libretranslateHost,
+          lmstudio_model: config.lmstudioModel,
+          lmstudio_host: config.lmstudioHost,
+          nllb_host: config.nllbHost,
+          nllb_engine: config.nllbEngine,
           groq_api_key: config.groqApiKey,
           groq_model: config.groqModel,
           detector: 'ctd',
-          ocr: 'manga_ocr',
+          ocr: 'auto',
           inpainter: 'lama',
           renderer: 'manga2eng'
         };
 
         // Request translation via background worker to bypass page CSP restrictions
-        const result = await new Promise((resolve, reject) => {
-          chrome.runtime.sendMessage({
-            action: 'translate_image',
-            apiUrl: config.apiUrl,
-            payload: payload
-          }, (response) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else if (response && response.success) {
-              resolve(response.data);
-            } else {
-              reject(new Error(response ? response.error : 'Failed to translate image via background worker'));
-            }
-          });
-        });
+        const result = await requestImageTranslation(config, payload);
         
         if (result.success && result.translated_image) {
           // Replace source immediately
-          imgEl.dataset.originalSrc = imgEl.src;
+          if (!imgEl.dataset.originalSrc) {
+            imgEl.dataset.originalSrc = imgEl.src;
+          }
           imgEl.src = `data:image/jpeg;base64,${result.translated_image}`;
           imgEl.dataset.mangaTranslated = 'true';
           imgEl.classList.add('manga-translated-fade-in');
@@ -356,6 +491,7 @@ async function startProgressiveTranslation(images, config) {
       } catch (e) {
         console.error(`Failed to translate image ${currentIndex}:`, e);
       } finally {
+        delete imgEl.dataset.mangaTranslating;
         removeLoaderOverlay(imgEl);
         const elapsed = Date.now() - imgStartTime;
         updateProgressWidget(1, elapsed);
@@ -374,6 +510,7 @@ async function startProgressiveTranslation(images, config) {
 // Translate a single image triggered from the context menu
 async function translateSingleImage(imgEl, config) {
   const imgStartTime = Date.now();
+  imgEl.dataset.mangaTranslating = 'true';
   addLoaderOverlay(imgEl);
 
   // Latido para imágenes individuales
@@ -383,38 +520,28 @@ async function translateSingleImage(imgEl, config) {
     const base64Str = await getBase64FromImage(imgEl);
     const payload = {
       image: base64Str,
+      source_lang: config.sourceLang === 'ja' ? 'ja' : 'auto',
       target_lang: config.targetLang,
       translator: config.translator,
-      ollama_model: config.ollamaModel,
-      ollama_host: config.ollamaHost,
-      libretranslate_host: config.libretranslateHost,
+      lmstudio_model: config.lmstudioModel,
+      lmstudio_host: config.lmstudioHost,
+      nllb_host: config.nllbHost,
+      nllb_engine: config.nllbEngine,
       groq_api_key: config.groqApiKey,
       groq_model: config.groqModel,
       detector: 'ctd',
-      ocr: 'manga_ocr',
+      ocr: 'auto',
       inpainter: 'lama',
       renderer: 'manga2eng'
     };
 
     // Request translation via background worker to bypass page CSP restrictions
-    const result = await new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({
-        action: 'translate_image',
-        apiUrl: config.apiUrl,
-        payload: payload
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-        } else if (response && response.success) {
-          resolve(response.data);
-        } else {
-          reject(new Error(response ? response.error : 'Failed to translate image via background worker'));
-        }
-      });
-    });
+    const result = await requestImageTranslation(config, payload);
     
     if (result.success && result.translated_image) {
-      imgEl.dataset.originalSrc = imgEl.src;
+      if (!imgEl.dataset.originalSrc) {
+        imgEl.dataset.originalSrc = imgEl.src;
+      }
       imgEl.src = `data:image/jpeg;base64,${result.translated_image}`;
       imgEl.dataset.mangaTranslated = 'true';
       imgEl.classList.add('manga-translated-fade-in');
@@ -426,6 +553,7 @@ async function translateSingleImage(imgEl, config) {
     console.error('Single image translation failed:', e);
     alert('Fallo la traducción de la imagen. Verifica que la API local esté corriendo.');
   } finally {
+    delete imgEl.dataset.mangaTranslating;
     // Limpiar intervalo
     clearInterval(keepAlive);
     removeLoaderOverlay(imgEl);

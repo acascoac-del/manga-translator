@@ -1,0 +1,6 @@
+{$COMMERCIAL_DOMAIN} {
+    request_body {
+        max_size 17MB
+    }
+    reverse_proxy web:8010
+}

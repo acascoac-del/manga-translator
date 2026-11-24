@@ -21,8 +21,7 @@ ocr:
 
 # Translation module
 translation:
-  service: "mymemory"  # mymemory | google | libretranslate
-  libretranslate_url: "http://localhost:5003"
+  service: "mymemory"  # mymemory | google
 
 # Inpainting module
 inpainting:

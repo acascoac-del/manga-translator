@@ -1,0 +1,9 @@
+# LM Studio OpenAI-compatible local server
+base_url: http://localhost:1234/v1
+model: auto
+temperature: 0.1
+top_p: 0.85
+max_tokens: 2048
+timeout_seconds: 180
+
+# In Docker, localhost is automatically rewritten to host.docker.internal.

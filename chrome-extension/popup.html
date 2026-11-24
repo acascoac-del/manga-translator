@@ -4,271 +4,575 @@
   <meta charset="utf-8">
   <style>
     :root {
-      --bg-primary: #0f111a;
-      --bg-glass: rgba(30, 32, 50, 0.6);
-      --accent: #6c5ce7;
-      --accent-glow: rgba(108, 92, 231, 0.4);
-      --text-main: #f1f2f6;
-      --text-muted: #a4b0be;
-      --border-color: rgba(255, 255, 255, 0.08);
+      --bg-primary: #0a0b10;
+      --bg-secondary: #12131a;
+      --bg-glass: rgba(22, 24, 35, 0.75);
+      --bg-card: rgba(30, 32, 48, 0.5);
+      --accent: #7c6aff;
+      --accent-light: #a89bff;
+      --accent-glow: rgba(124, 106, 255, 0.35);
+      --accent-subtle: rgba(124, 106, 255, 0.08);
+      --google: #4285f4;
+      --groq: #f55036;
+      --lmstudio: #2ed573;
+      --text-main: #eef0f6;
+      --text-secondary: #8b8fa8;
+      --text-muted: #5a5e76;
+      --border: rgba(255, 255, 255, 0.06);
+      --border-hover: rgba(255, 255, 255, 0.12);
       --success: #2ed573;
+      --error: #ff4757;
     }
 
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
     body {
-      width: 320px;
-      background-color: var(--bg-primary);
+      width: 340px;
+      background: var(--bg-primary);
       color: var(--text-main);
-      overflow: hidden;
-      padding: 16px;
+      overflow-x: hidden;
+      padding: 0;
     }
 
-    /* Glassmorphism card wrapper */
+    /* Animated gradient background */
+    .bg-gradient {
+      position: fixed;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 30% 20%, rgba(124, 106, 255, 0.08) 0%, transparent 50%),
+                  radial-gradient(circle at 70% 80%, rgba(0, 210, 255, 0.05) 0%, transparent 50%);
+      animation: bgShift 15s ease-in-out infinite alternate;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    @keyframes bgShift {
+      0% { transform: translate(0, 0); }
+      100% { transform: translate(-5%, -5%); }
+    }
+
     .container {
-      background: var(--bg-glass);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      position: relative;
+      z-index: 1;
+      padding: 20px;
     }
 
+    /* Header */
     header {
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 20px;
-      border-bottom: 1px solid var(--border-color);
-      padding-bottom: 12px;
+      gap: 14px;
+      margin-bottom: 24px;
     }
 
-    .logo-container {
-      background: linear-gradient(135deg, var(--accent), #a8a5ff);
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
+    .logo-ring {
+      position: relative;
+      width: 44px;
+      height: 44px;
+    }
+
+    .logo-ring::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-light));
+      animation: logoPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes logoPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.05); }
+    }
+
+    .logo-inner {
+      position: absolute;
+      inset: 2px;
+      background: var(--bg-primary);
+      border-radius: 12px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: bold;
-      color: #fff;
-      font-size: 18px;
-      box-shadow: 0 0 12px var(--accent-glow);
+      font-size: 20px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #1a1b2e, #0f1019);
     }
 
-    h1 {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-      background: linear-gradient(to right, #fff, #a8a5ff);
+    .logo-inner span {
+      background: linear-gradient(135deg, var(--accent-light), var(--accent));
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
-    .form-group {
+    .header-text h1 {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      color: var(--text-main);
+    }
+
+    .header-text .version-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--accent-light);
+      background: var(--accent-subtle);
+      padding: 2px 8px;
+      border-radius: 6px;
+      margin-top: 4px;
+    }
+
+    .version-tag .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.5; transform: scale(0.8); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+
+    /* Section labels */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      padding-left: 2px;
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
       margin-bottom: 14px;
+      transition: all 0.3s ease;
+    }
+
+    .card:hover {
+      border-color: var(--border-hover);
+      background: rgba(30, 32, 48, 0.7);
+    }
+
+    /* Form controls */
+    .form-row {
+      margin-bottom: 12px;
+    }
+
+    .form-row:last-child {
+      margin-bottom: 0;
     }
 
     label {
       display: block;
       font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--text-muted);
-      margin-bottom: 6px;
       font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      letter-spacing: 0.3px;
     }
 
-    select, input {
+    select, input[type="text"], input[type="password"] {
       width: 100%;
-      background: rgba(15, 17, 26, 0.7);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
+      background: rgba(10, 11, 16, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 10px;
       color: var(--text-main);
-      padding: 8px 12px;
+      padding: 10px 14px;
       font-size: 13px;
+      font-weight: 500;
       outline: none;
-      transition: all 0.3s ease;
+      transition: all 0.25s ease;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b8fa8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
     }
 
     select:focus, input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 8px var(--accent-glow);
+      box-shadow: 0 0 0 3px var(--accent-glow);
     }
 
-    .btn-translate {
+    select option {
+      background: var(--bg-secondary);
+      color: var(--text-main);
+    }
+
+    /* Engine selector cards */
+    .engine-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .engine-card {
+      position: relative;
+      background: var(--bg-card);
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-align: center;
+      user-select: none;
+    }
+
+    .engine-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-1px);
+    }
+
+    .engine-card.active {
+      border-color: var(--engine-color, var(--accent));
+      background: rgba(124, 106, 255, 0.06);
+      box-shadow: 0 0 20px rgba(124, 106, 255, 0.1);
+    }
+
+    .engine-card.active::after {
+      content: '';
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--engine-color, var(--accent));
+      box-shadow: 0 0 8px var(--engine-color, var(--accent));
+    }
+
+    .engine-icon {
+      font-size: 22px;
+      margin-bottom: 4px;
       display: block;
-      width: 100%;
-      background: linear-gradient(135deg, var(--accent), #4834d4);
-      color: #fff;
-      border: none;
+    }
+
+    .engine-name {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-main);
+      letter-spacing: 0.2px;
+    }
+
+    .engine-desc {
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Settings panels */
+    .settings-panel {
+      display: none;
+      background: rgba(10, 11, 16, 0.5);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 12px;
+      margin-top: 10px;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    .settings-panel.visible {
+      display: block;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .engine-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--accent-light);
+      background: rgba(0, 210, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-top: 4px;
+    }
+
+    /* Translate button */
+    .btn-translate {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent), #5a4adf);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
       font-size: 14px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
-      margin-top: 18px;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(108, 92, 231, 0.3);
+      margin-top: 16px;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      box-shadow: 0 4px 20px rgba(124, 106, 255, 0.25);
       position: relative;
       overflow: hidden;
+      letter-spacing: 0.3px;
+    }
+
+    .btn-translate::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      transition: left 0.5s ease;
     }
 
     .btn-translate:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(108, 92, 231, 0.4);
-      background: linear-gradient(135deg, #786df7, #4834d4);
+      box-shadow: 0 8px 30px rgba(124, 106, 255, 0.35);
+    }
+
+    .btn-translate:hover::before {
+      left: 100%;
     }
 
     .btn-translate:active {
       transform: translateY(1px);
+      box-shadow: 0 2px 10px rgba(124, 106, 255, 0.2);
     }
 
-    .ollama-settings {
-      display: none;
-      background: rgba(255, 255, 255, 0.02);
-      border: 1px dashed var(--border-color);
-      border-radius: 8px;
-      padding: 10px;
-      margin-top: 8px;
-      animation: slideDown 0.3s ease-out forwards;
+    .btn-translate:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
     }
 
-    @keyframes slideDown {
-      from { opacity: 0; transform: translateY(-8px); }
-      to { opacity: 1; transform: translateY(0); }
+    .btn-icon {
+      font-size: 16px;
     }
 
+    /* Server selector */
+    .server-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .server-row select {
+      flex: 1;
+    }
+
+    .server-status {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: all 0.3s ease;
+      flex-shrink: 0;
+    }
+
+    .server-status.connected {
+      background: var(--success);
+      box-shadow: 0 0 8px rgba(46, 213, 115, 0.5);
+    }
+
+    .server-status.error {
+      background: var(--error);
+      box-shadow: 0 0 8px rgba(255, 71, 87, 0.5);
+    }
+
+    /* Footer */
     footer {
       margin-top: 16px;
       text-align: center;
-      font-size: 11px;
+      font-size: 10px;
       color: var(--text-muted);
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
     }
 
-    .status-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      font-size: 11px;
-      background: rgba(46, 213, 115, 0.15);
-      color: var(--success);
-      padding: 2px 8px;
-      border-radius: 12px;
-      margin-top: 4px;
+    footer a {
+      color: var(--accent-light);
+      text-decoration: none;
     }
 
-    .status-dot {
-      width: 6px;
-      height: 6px;
-      background: var(--success);
-      border-radius: 50%;
-      animation: pulse 1.5s infinite;
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 4px;
     }
-
-    @keyframes pulse {
-      0% { transform: scale(0.9); opacity: 0.6; }
-      50% { transform: scale(1.2); opacity: 1; }
-      100% { transform: scale(0.9); opacity: 0.6; }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px;
     }
   </style>
 </head>
 <body>
+  <div class="bg-gradient"></div>
   <div class="container">
     <header>
-      <div class="logo-container">文</div>
-      <div>
+      <div class="logo-ring">
+        <div class="logo-inner"><span>MT</span></div>
+      </div>
+      <div class="header-text">
         <h1>MangaTranslatorAR</h1>
-        <div class="status-badge">
-          <div class="status-dot"></div>
-          <span>API Local Conectada</span>
+        <div class="version-tag">
+          <div class="dot"></div>
+          <span>v2.0 Activo</span>
         </div>
       </div>
     </header>
 
-    <div class="form-group">
-      <label for="targetLang">Idioma Destino</label>
-      <select id="targetLang">
-        <option value="es" selected>Español (ES)</option>
-        <option value="en">Inglés (EN)</option>
-        <option value="pt">Portugués (PT)</option>
-        <option value="fr">Francés (FR)</option>
-        <option value="de">Alemán (DE)</option>
-        <option value="it">Italiano (IT)</option>
-        <option value="ru">Ruso (RU)</option>
-        <option value="zh">Chino (ZH)</option>
-      </select>
+    <!-- Language -->
+    <div class="card">
+      <div class="form-row">
+        <label for="sourceLanguageMode">Idioma de origen</label>
+        <select id="sourceLanguageMode">
+          <option value="auto" selected>Automático</option>
+          <option value="ja">Japonés (reconocimiento directo)</option>
+        </select>
+      </div>
+      <div class="form-row" style="display: flex; gap: 10px; margin-bottom: 0;">
+        <div style="flex: 1;">
+          <label for="targetLang">Idioma Destino</label>
+          <select id="targetLang">
+            <option value="es" selected>Español</option>
+            <option value="en">English</option>
+            <option value="pt">Português</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="it">Italiano</option>
+            <option value="ru">Русский</option>
+            <option value="zh">中文</option>
+            <option value="ko">한국어</option>
+            <option value="ar">العربية</option>
+          </select>
+          <div style="font-size: 10px; color: var(--text-secondary); margin-top: 6px;">
+            Usa Automático para inglés, coreano, chino o capítulos mixtos.
+          </div>
+        </div>
+      </div>
     </div>
 
-    <div class="form-group">
-      <label for="translator">Motor de Traducción</label>
-      <select id="translator">
-        <option value="google">Google Translate (Gratis)</option>
-        <option value="baidu">Baidu Translate (Gratis)</option>
-        <option value="groq">Groq (IA Cloud)</option>
-        <option value="ollama">Ollama (IA Local)</option>
-        <option value="libretranslate">LibreTranslate (Local)</option>
-      </select>
+    <!-- Engine Selection -->
+    <div class="section-label">Motor de Traducción</div>
+    <div class="engine-grid">
+      <div class="engine-card active" data-engine="llamacpp" style="--engine-color: #a89bff;">
+        <span class="engine-icon">&#129457;</span>
+        <div class="engine-name">Llama.cpp</div>
+        <div class="engine-desc">Qwen2.5 3B (GPU)</div>
+      </div>
+      <div class="engine-card" data-engine="google" style="--engine-color: var(--google);">
+        <span class="engine-icon">G</span>
+        <div class="engine-name">Google</div>
+        <div class="engine-desc">Gratis</div>
+      </div>
+      <div class="engine-card" data-engine="groq" style="--engine-color: var(--groq);">
+        <span class="engine-icon">Q</span>
+        <div class="engine-name">Groq</div>
+        <div class="engine-desc">Cloud IA</div>
+      </div>
+      <div class="engine-card" data-engine="lmstudio" style="--engine-color: var(--lmstudio);">
+        <span class="engine-icon">LM</span>
+        <div class="engine-name">LM Studio Bionic</div>
+        <div class="engine-desc">Local IA</div>
+      </div>
     </div>
 
-    <div id="groqSettings" class="ollama-settings">
-      <div class="form-group">
-        <label for="groqApiKey">API Key de Groq</label>
+    <!-- Llama.cpp Settings -->
+    <div id="llamacppSettings" class="settings-panel visible">
+      <div class="form-row">
+        <label>Modelo Nativo Integrado</label>
+        <div style="font-size: 11px; font-weight: 600; color: var(--accent-light); background: rgba(124, 106, 255, 0.1); padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(124, 106, 255, 0.2);">
+          &#129457; Qwen2.5-3B-Instruct Q4_K_M (GGUF)
+        </div>
+      </div>
+      <div class="engine-badge" style="color: var(--accent-light); background: rgba(124, 106, 255, 0.15);">
+        <span>&#9889;</span> Motor nativo en GPU - Sin programas externos
+      </div>
+    </div>
+
+    <!-- Groq Settings -->
+    <div id="groqSettings" class="settings-panel">
+      <div class="form-row">
+        <label for="groqApiKey">API Key</label>
         <input type="password" id="groqApiKey" placeholder="gsk_..." autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label for="groqModel">Modelo de Groq</label>
+      <div class="form-row">
+        <label for="groqModel">Modelo</label>
         <select id="groqModel">
-          <option value="llama-3.1-8b-instant" selected>Llama 3.1 8B Instant</option>
-          <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</option>
-          <option value="mixtral-8x7b-32768">Mixtral 8x7B</option>
-          <option value="gemma2-9b-it">Gemma 2 9B</option>
+          <option value="auto" selected>Automático (recomendado)</option>
+          <option value="llama-3.1-8b-instant">Llama 3.1 8B (rápido)</option>
         </select>
       </div>
     </div>
 
-    <div id="ollamaSettings" class="ollama-settings">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label for="ollamaModel">Modelo de Ollama</label>
-        <select id="ollamaModel">
-          <!-- Will be loaded dynamically -->
-          <option value="gemma3:4b">Cargando modelos...</option>
+    <!-- LM Studio Settings -->
+    <div id="lmstudioSettings" class="settings-panel">
+      <div class="form-row">
+        <label for="lmstudioModel">Modelo cargado</label>
+        <select id="lmstudioModel">
+          <option value="auto">Cargando...</option>
         </select>
       </div>
-    </div>
-
-    <div id="libreTranslateSettings" class="ollama-settings">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label for="libretranslateHost">Host LibreTranslate</label>
-        <input type="text" id="libretranslateHost" value="http://localhost:5000">
+      <div class="engine-badge" style="color: #2ed573; background: rgba(46, 213, 115, 0.12);">
+        API local compatible con OpenAI · puerto 1234
       </div>
     </div>
 
-    <div class="form-group">
-      <label for="apiPreset">Servidor API</label>
-      <select id="apiPreset">
-        <option value="http://localhost:8001">Local (localhost:8001)</option>
-        <option value="https://8001-deploy-model-devbox.litng.ai">Lightning AI (Nube)</option>
-        <option value="custom">Personalizado...</option>
-      </select>
+    <!-- Server -->
+    <div class="card" style="margin-top: 14px;">
+      <div class="form-row" style="margin-bottom: 0;">
+        <label for="apiPreset">Servidor API</label>
+        <div class="server-row">
+          <select id="apiPreset">
+            <option value="http://localhost:8001">Local (8001)</option>
+            <option value="https://8001-deploy-model-devbox.litng.ai">Lightning AI</option>
+            <option value="custom">Personalizado</option>
+          </select>
+          <div class="server-status" id="serverStatus" title="Estado del servidor"></div>
+        </div>
+      </div>
+      <div class="form-row" id="apiCustomGroup" style="display: none; margin-top: 8px; margin-bottom: 0;">
+        <input type="text" id="apiUrl" value="http://localhost:8001" placeholder="https://...">
+      </div>
     </div>
 
-    <div class="form-group" id="apiCustomGroup" style="display: none;">
-      <label for="apiUrl">Endpoint API</label>
-      <input type="text" id="apiUrl" value="http://localhost:8001">
-    </div>
-
-    <button id="btnTranslate" class="btn-translate">Traducir Página Completa</button>
+    <button id="btnTranslate" class="btn-translate">
+      <span class="btn-icon">&#9654;</span>
+      Traducir Página
+    </button>
 
     <footer>
-      Versión local 1.0
+      MangaTranslatorAR v2.0 &middot; <a href="#" id="linkHelp">Ayuda</a>
     </footer>
   </div>
 

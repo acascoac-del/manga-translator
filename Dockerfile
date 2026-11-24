@@ -18,12 +18,16 @@ RUN python${PYTHON_VERSION} -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt /tmp/requirements.txt
+# Install llama.cpp exclusively from the CUDA wheel index. Using it as an
+# extra index lets pip prefer a newer CPU-only wheel from public PyPI.
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir \
     torch torchvision torchaudio \
     --index-url https://download.pytorch.org/whl/cu121 && \
     pip install --no-cache-dir onnxruntime-gpu==1.19.2 && \
-    pip install --no-cache-dir -r /tmp/requirements.txt
+    pip install --no-cache-dir -r /tmp/requirements.txt && \
+    pip install --no-cache-dir llama-cpp-python \
+        --index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
 
 # Stage 2: Runtime
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 AS runtime

@@ -1,194 +1,235 @@
-// Default config settings
 const DEFAULT_SETTINGS = {
+  sourceLanguageMode: 'auto',
   targetLang: 'es',
-  translator: 'google',
-  ollamaModel: 'qwen2.5:3b',
+  translator: 'llamacpp',
+  lmstudioModel: 'auto',
+  lmstudioHost: 'http://localhost:1234/v1',
+  ollamaModel: null,
   groqApiKey: '',
-  groqModel: 'llama-3.1-8b-instant',
-  libretranslateHost: 'http://localhost:5000',
+  groqModel: 'auto',
   apiPreset: 'http://localhost:8001',
   apiUrl: 'http://127.0.0.1:8001'
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+  const sourceLanguageSelect = document.getElementById('sourceLanguageMode');
   const targetLangSelect = document.getElementById('targetLang');
-  const translatorSelect = document.getElementById('translator');
-  const ollamaSettingsDiv = document.getElementById('ollamaSettings');
-  const ollamaModelSelect = document.getElementById('ollamaModel');
-  const groqSettingsDiv = document.getElementById('groqSettings');
+  const lmstudioModelSelect = document.getElementById('lmstudioModel');
   const groqApiKeyInput = document.getElementById('groqApiKey');
   const groqModelSelect = document.getElementById('groqModel');
-  const libreTranslateSettingsDiv = document.getElementById('libreTranslateSettings');
-  const libreTranslateHostInput = document.getElementById('libretranslateHost');
   const apiPresetSelect = document.getElementById('apiPreset');
   const apiCustomGroup = document.getElementById('apiCustomGroup');
   const apiUrlInput = document.getElementById('apiUrl');
   const btnTranslate = document.getElementById('btnTranslate');
+  const serverStatus = document.getElementById('serverStatus');
+
+  const engineCards = document.querySelectorAll('.engine-card');
+  let currentTranslator = 'llamacpp';
 
   // Load saved settings
   chrome.storage.local.get(DEFAULT_SETTINGS, (settings) => {
+    const retiredGroqModels = new Set([
+      'llama-3.3-70b-versatile', 'mixtral-8x7b-32768', 'gemma2-9b-it'
+    ]);
+    if (retiredGroqModels.has(settings.groqModel)) {
+      settings.groqModel = 'auto';
+      chrome.storage.local.set({ groqModel: 'auto' });
+    }
+    currentTranslator = settings.translator === 'ollama'
+      ? 'lmstudio'
+      : (settings.translator || 'llamacpp');
+    if (settings.translator === 'ollama') {
+      settings.lmstudioModel = 'auto';
+      chrome.storage.local.set({ translator: 'lmstudio', lmstudioModel: 'auto' });
+    }
+    sourceLanguageSelect.value = settings.sourceLanguageMode === 'ja' ? 'ja' : 'auto';
     targetLangSelect.value = settings.targetLang;
-    translatorSelect.value = settings.translator;
     apiPresetSelect.value = settings.apiPreset || 'http://localhost:8001';
     apiUrlInput.value = settings.apiUrl;
-    libreTranslateHostInput.value = settings.libretranslateHost;
     groqApiKeyInput.value = settings.groqApiKey;
     groqModelSelect.value = settings.groqModel;
-    
-    toggleApiCustomGroup(apiPresetSelect.value);
-    toggleSettings(settings.translator);
+    if (!groqModelSelect.value) {
+      settings.groqModel = 'auto';
+      groqModelSelect.value = 'auto';
+      chrome.storage.local.set({ groqModel: 'auto' });
+    }
 
-    // Load Ollama models and select active, only if Ollama is the selected translator
-    if (settings.translator === 'ollama') {
-      loadOllamaModels(settings.apiUrl, settings.ollamaModel);
+    setActiveEngine(currentTranslator);
+    toggleApiCustomGroup(apiPresetSelect.value);
+    checkServerStatus(settings.apiUrl);
+
+    if (currentTranslator === 'lmstudio') {
+      loadLmStudioModels(settings.apiUrl, settings.lmstudioModel);
     } else {
-      // Just populate the fallback list so the dropdown isn't empty if they switch later
-      populateOllamaFallback(settings.ollamaModel);
+      populateLmStudioFallback(settings.lmstudioModel);
     }
   });
 
-  function populateOllamaFallback(currentModel) {
-    ollamaModelSelect.innerHTML = `
-      <option value="qwen2.5:3b">qwen2.5:3b</option>
-      <option value="gemma4:e4b">gemma4:e4b</option>
-      <option value="gemma3:4b">gemma3:4b</option>
-      <option value="llama3">llama3</option>
-    `;
-    for (let opt of ollamaModelSelect.options) {
-      if (opt.value === currentModel) {
-        opt.selected = true;
+  // Engine card selection
+  engineCards.forEach(card => {
+    card.addEventListener('click', () => {
+      const engine = card.dataset.engine;
+      currentTranslator = engine;
+      setActiveEngine(engine);
+      saveSettings();
+
+      if (engine === 'lmstudio') {
+        loadLmStudioModels(apiUrlInput.value, lmstudioModelSelect.value);
       }
+    });
+  });
+
+  function setActiveEngine(engine) {
+    engineCards.forEach(card => {
+      card.classList.toggle('active', card.dataset.engine === engine);
+    });
+
+    // Toggle settings panels
+    const llamacppPanel = document.getElementById('llamacppSettings');
+    if (llamacppPanel) llamacppPanel.classList.toggle('visible', engine === 'llamacpp');
+    document.getElementById('groqSettings').classList.toggle('visible', engine === 'groq');
+    document.getElementById('lmstudioSettings').classList.toggle('visible', engine === 'lmstudio');
+  }
+
+  function populateLmStudioFallback(currentModel) {
+    lmstudioModelSelect.innerHTML = `
+      <option value="auto">Automático (inicia el servidor de LM Studio)</option>
+    `;
+    for (let opt of lmstudioModelSelect.options) {
+      if (opt.value === currentModel) opt.selected = true;
     }
   }
 
-  // Load models from API via background worker to bypass CORS
-  async function loadOllamaModels(apiUrl, currentModel) {
+  async function loadLmStudioModels(apiUrl, currentModel) {
     chrome.runtime.sendMessage({
-      action: 'fetch_ollama_models',
+      action: 'fetch_lmstudio_models',
       apiUrl: apiUrl
     }, (response) => {
-      if (response && response.success && response.data && response.data.models) {
-        const models = response.data.models;
-        if (models.length > 0) {
-          ollamaModelSelect.innerHTML = '';
-          models.forEach(model => {
-            const opt = document.createElement('option');
-            opt.value = model;
-            opt.textContent = model;
-            if (model === currentModel) {
-              opt.selected = true;
-            }
-            ollamaModelSelect.appendChild(opt);
-          });
-          saveSettings();
-          return;
-        }
+      if (chrome.runtime.lastError) {
+        console.error('No se pudieron consultar los modelos de LM Studio:', chrome.runtime.lastError.message);
+        populateLmStudioFallback(currentModel);
+        return;
       }
-      
-      // Fallback list
-      console.warn("Could not query Ollama models from background worker, using fallback list.");
-      populateOllamaFallback(currentModel);
+
+      if (response?.success && response?.data?.models?.length > 0) {
+        const models = response.data.models;
+        lmstudioModelSelect.innerHTML = '';
+        const autoOption = document.createElement('option');
+        autoOption.value = 'auto';
+        autoOption.textContent = 'Automático (recomendado)';
+        autoOption.selected = !currentModel || currentModel === 'auto' || !models.includes(currentModel);
+        lmstudioModelSelect.appendChild(autoOption);
+        models.forEach(model => {
+          const opt = document.createElement('option');
+          opt.value = model;
+          opt.textContent = model;
+          if (model === currentModel) opt.selected = true;
+          lmstudioModelSelect.appendChild(opt);
+        });
+        saveSettings();
+        return;
+      }
+      populateLmStudioFallback(currentModel);
     });
   }
 
-  // Save settings on changes
+  async function checkServerStatus(apiUrl) {
+    try {
+      const safeUrl = apiUrl.replace('localhost', '127.0.0.1').replace(/\/$/, '');
+      const resp = await fetch(`${safeUrl}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+      if (resp.ok) {
+        serverStatus.className = 'server-status connected';
+        serverStatus.title = 'Servidor conectado';
+      } else {
+        serverStatus.className = 'server-status error';
+        serverStatus.title = 'Servidor con errores';
+      }
+    } catch {
+      serverStatus.className = 'server-status error';
+      serverStatus.title = 'Servidor no reachable';
+    }
+  }
+
+  // Save settings
   const saveSettings = () => {
     chrome.storage.local.set({
+      sourceLanguageMode: sourceLanguageSelect.value,
       targetLang: targetLangSelect.value,
-      translator: translatorSelect.value,
-      ollamaModel: ollamaModelSelect.value,
+      translator: currentTranslator,
+      lmstudioModel: lmstudioModelSelect.value,
+      lmstudioHost: 'http://localhost:1234/v1',
       groqApiKey: groqApiKeyInput.value,
       groqModel: groqModelSelect.value,
-      libretranslateHost: libreTranslateHostInput.value,
       apiPreset: apiPresetSelect.value,
       apiUrl: apiUrlInput.value
     });
   };
 
+  // Event listeners
+  sourceLanguageSelect.addEventListener('change', saveSettings);
   targetLangSelect.addEventListener('change', saveSettings);
-  ollamaModelSelect.addEventListener('change', saveSettings);
+  lmstudioModelSelect.addEventListener('change', saveSettings);
   groqApiKeyInput.addEventListener('input', saveSettings);
   groqModelSelect.addEventListener('change', saveSettings);
-  libreTranslateHostInput.addEventListener('input', saveSettings);
-  
+
   apiPresetSelect.addEventListener('change', () => {
     const preset = apiPresetSelect.value;
     toggleApiCustomGroup(preset);
-    if (preset !== 'custom') {
-      apiUrlInput.value = preset;
-    }
+    if (preset !== 'custom') apiUrlInput.value = preset;
     saveSettings();
-    if (translatorSelect.value === 'ollama') {
-      loadOllamaModels(apiUrlInput.value, ollamaModelSelect.value);
+    checkServerStatus(apiUrlInput.value);
+    if (currentTranslator === 'lmstudio') {
+      loadLmStudioModels(apiUrlInput.value, lmstudioModelSelect.value);
     }
   });
-  
+
   apiUrlInput.addEventListener('input', () => {
     saveSettings();
-    if (translatorSelect.value === 'ollama') {
-      loadOllamaModels(apiUrlInput.value, ollamaModelSelect.value);
+    checkServerStatus(apiUrlInput.value);
+    if (currentTranslator === 'lmstudio') {
+      loadLmStudioModels(apiUrlInput.value, lmstudioModelSelect.value);
     }
   });
 
-  translatorSelect.addEventListener('change', () => {
-    toggleSettings(translatorSelect.value);
-    saveSettings();
-    if (translatorSelect.value === 'ollama') {
-      loadOllamaModels(apiUrlInput.value, ollamaModelSelect.value);
-    }
-  });
-
-  function toggleSettings(value) {
-    ollamaSettingsDiv.style.display = value === 'ollama' ? 'block' : 'none';
-    groqSettingsDiv.style.display = value === 'groq' ? 'block' : 'none';
-    libreTranslateSettingsDiv.style.display = value === 'libretranslate' ? 'block' : 'none';
-  }
-  
   function toggleApiCustomGroup(preset) {
-    if (preset === 'custom') {
-      apiCustomGroup.style.display = 'block';
-    } else {
-      apiCustomGroup.style.display = 'none';
-    }
+    apiCustomGroup.style.display = preset === 'custom' ? 'block' : 'none';
   }
 
-  // Trigger translation in content script of current page
+  // Translate button
   btnTranslate.addEventListener('click', async () => {
     btnTranslate.disabled = true;
-    btnTranslate.textContent = 'Enviando...';
+    btnTranslate.innerHTML = '<span class="btn-icon">&#8987;</span> Enviando...';
 
-    // Get active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+
     if (tab) {
       const config = {
         action: 'translate_page',
+        sourceLang: sourceLanguageSelect.value,
         targetLang: targetLangSelect.value,
-        translator: translatorSelect.value,
-        ollamaModel: ollamaModelSelect.value,
+        translator: currentTranslator,
+        lmstudioModel: lmstudioModelSelect.value,
         groqApiKey: groqApiKeyInput.value,
         groqModel: groqModelSelect.value,
-        libretranslateHost: libreTranslateHostInput.value,
-        ollamaHost: 'http://localhost:8080', // preconfigured port, resolved internally in API to host.docker.internal
+        lmstudioHost: 'http://localhost:1234/v1',
         apiUrl: apiUrlInput.value
       };
-      
-      // Send message to content script
+
       chrome.tabs.sendMessage(tab.id, config, (response) => {
         btnTranslate.disabled = false;
-        btnTranslate.textContent = 'Traducir Página Completa';
-        
+        btnTranslate.innerHTML = '<span class="btn-icon">&#9654;</span> Traducir Página';
+
         if (chrome.runtime.lastError) {
-          alert('Error: Por favor recarga la página de manga antes de intentar traducir.');
-        } else if (response && response.success) {
-          window.close(); // Close popup if successfully sent
+          alert('Error: Recarga la página de manga antes de traducir.');
+        } else if (response?.success) {
+          window.close();
         } else {
-          alert('No se encontraron imágenes aptas para traducir en esta página.');
+          alert('No se encontraron imágenes para traducir.');
         }
       });
     } else {
       btnTranslate.disabled = false;
-      btnTranslate.textContent = 'Traducir Página Completa';
+      btnTranslate.innerHTML = '<span class="btn-icon">&#9654;</span> Traducir Página';
     }
   });
 });

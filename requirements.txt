@@ -13,9 +13,10 @@ translators>=6.0.4
 # --- Detection (CTD - Comic Text Detector) ---
 ultralytics==8.0.220
 
-# --- OCR (manga-ocr) ---
+# --- OCR (manga-ocr & easyocr) ---
 manga-ocr==0.1.11
 transformers>=4.30.0,<4.45.0
+easyocr==1.7.2
 
 # --- Translation (Google free) ---
 httpx>=0.28.1
@@ -33,3 +34,7 @@ torch
 torchvision
 onnxruntime-gpu==1.19.2
 huggingface_hub
+einops
+scikit-image
+pyclipper
+shapely

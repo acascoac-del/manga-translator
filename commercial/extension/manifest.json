@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "MangaTranslator · Cloud Beta",
+  "version": "0.1.0",
+  "description": "Traduce imágenes al español con tu cuenta y créditos de MangaTranslator.",
+  "permissions": ["storage", "contextMenus", "alarms", "activeTab", "scripting"],
+  "host_permissions": ["http://127.0.0.1:8010/*"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": {"service_worker": "background.js"},
+  "action": {"default_popup": "popup.html"}
+}

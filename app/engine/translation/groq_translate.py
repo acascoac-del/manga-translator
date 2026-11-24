@@ -6,14 +6,87 @@ Connects to https://api.groq.com/openai/v1/chat/completions
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from typing import Optional
 
 import httpx
 
+from .quality import (
+    batch_prompt,
+    clean_model_output,
+    openai_chat_payload,
+    parse_numbered_output,
+    single_prompt,
+)
+
 log = logging.getLogger("translation.groq")
 
 _client: Optional[httpx.AsyncClient] = None
+_resolved_models: dict[str, str] = {}
+
+_GROQ_MODELS_URL = "https://api.groq.com/openai/v1/models"
+_GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+_GROQ_MODEL_PREFERENCE = (
+    "openai/gpt-oss-120b",
+    "qwen/qwen3-32b",
+    "llama-3.1-8b-instant",
+    "openai/gpt-oss-20b",
+)
+
+
+def _model_cache_key(api_key: str, requested: str) -> str:
+    digest = hashlib.sha256(api_key.encode("utf-8")).hexdigest()[:16]
+    return f"{digest}:{requested}"
+
+
+def _choose_available_model(model_ids: list[str], requested: str | None) -> str:
+    """Select a chat model without relying on a stale UI model list."""
+    requested = (requested or "auto").strip()
+    if requested.lower() != "auto" and requested in model_ids:
+        return requested
+    for candidate in _GROQ_MODEL_PREFERENCE:
+        if candidate in model_ids:
+            return candidate
+    excluded = ("whisper", "tts", "guard", "safety", "compound")
+    compatible = [
+        model_id for model_id in model_ids
+        if not any(token in model_id.lower() for token in excluded)
+    ]
+    if compatible:
+        return compatible[0]
+    # This is only used if the model-list request itself is unavailable.
+    return "llama-3.1-8b-instant"
+
+
+async def resolve_model(api_key: str, requested: str | None = None) -> str:
+    """Resolve and cache a model that the supplied Groq key can access."""
+    normalized = (requested or "auto").strip()
+    cache_key = _model_cache_key(api_key, normalized)
+    if cache_key in _resolved_models:
+        return _resolved_models[cache_key]
+
+    client = await get_client()
+    headers = {"Authorization": f"Bearer {api_key}"}
+    try:
+        response = await client.get(_GROQ_MODELS_URL, headers=headers)
+        response.raise_for_status()
+        model_ids = [
+            item.get("id") for item in response.json().get("data", [])
+            if item.get("id")
+        ]
+        selected = _choose_available_model(model_ids, normalized)
+    except Exception as exc:
+        selected = (
+            normalized if normalized.lower() != "auto"
+            else "llama-3.1-8b-instant"
+        )
+        log.warning("Could not query Groq models; trying %s: %s", selected, exc)
+
+    if selected != normalized:
+        log.warning("Groq model %r unavailable; automatically using %r", normalized, selected)
+    _resolved_models[cache_key] = selected
+    return selected
 
 async def get_client() -> httpx.AsyncClient:
     global _client
@@ -36,25 +109,15 @@ async def translate_text(
         log.warning("Groq API key is missing. Cannot translate.")
         return text
 
-    api_model = model or "llama-3.1-8b-instant"
+    api_model = await resolve_model(api_key, model)
     client = await get_client()
 
-    url = "https://api.groq.com/openai/v1/chat/completions"
+    url = _GROQ_CHAT_URL
     
-    system_prompt = (
-        f"You are a professional manga translator. Translate the following text from {source_lang} to {target_lang}. "
-        "Keep the translation natural, colloquial, and matching the style of speech bubble dialogue. "
-        "Output ONLY the translated text. DO NOT add any explanations, notes, greetings, or punctuation wrappers. "
-        "Preserve line breaks if they exist. Do not enclose the output in quotes."
-    )
+    prompt = single_prompt(source_lang, target_lang, text)
 
     try:
-        payload = {
-            "model": api_model,
-            "messages": [
-                {"role": "user", "content": f"{system_prompt}\n\nText to translate:\n{text}"}
-            ]
-        }
+        payload = openai_chat_payload(api_model, prompt)
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -65,14 +128,7 @@ async def translate_text(
             raise Exception(f"HTTP {resp.status_code}: {resp.text}")
             
         data = resp.json()
-        translated = data["choices"][0]["message"]["content"].strip()
-        
-        # Clean up any quotes that the model might have returned
-        if translated.startswith('"') and translated.endswith('"'):
-            translated = translated[1:-1].strip()
-        elif translated.startswith("'") and translated.endswith("'"):
-            translated = translated[1:-1].strip()
-            
+        translated = clean_model_output(data["choices"][0]["message"]["content"])
         return translated if translated else text
     except Exception as e:
         err_msg = str(e)
@@ -96,7 +152,7 @@ async def translate_batch(
     if not indexed:
         return results
     if not api_key:
-        log.warning("Groq API key missing for batch translation.")
+        log.warning("Groq API key missing; leaving regions for shared fallback.")
         return results
     
     if len(indexed) == 1:
@@ -104,26 +160,15 @@ async def translate_batch(
         results[i] = await translate_text(t, source_lang, target_lang, api_key, model)
         return results
     
-    api_model = model or "llama-3.1-8b-instant"
+    api_model = await resolve_model(api_key, model)
     client = await get_client()
-    url = "https://api.groq.com/openai/v1/chat/completions"
+    url = _GROQ_CHAT_URL
 
     numbered = "\n".join(f"{n+1}. {t}" for n, (_, t) in enumerate(indexed))
-    system_prompt = (
-        f"You are a professional manga translator. Translate each line below from {source_lang} to {target_lang}.\n"
-        "Rules:\n"
-        "- Output ONLY the translations, one per line, numbered exactly as in the input.\n"
-        "- Keep translations natural, short, and matching manga speech bubble style.\n"
-        "- Do NOT add explanations, notes, or extra lines."
-    )
+    prompt = batch_prompt(source_lang, target_lang, numbered)
 
     try:
-        payload = {
-            "model": api_model,
-            "messages": [
-                {"role": "user", "content": f"{system_prompt}\n\nLines to translate:\n{numbered}"}
-            ]
-        }
+        payload = openai_chat_payload(api_model, prompt)
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
@@ -137,40 +182,27 @@ async def translate_batch(
         raw = data["choices"][0]["message"]["content"].strip()
         log.info(f"GROQ RAW RESPONSE:\n{raw}")
 
-        # Parse numbered lines back
-        import re
-        lines = [l.strip() for l in raw.splitlines() if l.strip()]
-        parsed = {}
-        for line in lines:
-            m = re.match(r'^(\d+)\.?\s+(.*)', line)
-            if m:
-                num = int(m.group(1)) - 1
-                parsed[num] = m.group(2).strip()
+        parsed = parse_numbered_output(raw, len(indexed))
         
-        if len(parsed) >= len(indexed):
-            for n, (i, _) in enumerate(indexed):
-                if n in parsed:
-                    results[i] = parsed[n]
-        else:
-            clean_lines = []
-            for line in lines:
-                m = re.match(r'^\d+\.?\s+(.*)', line)
-                clean_lines.append(m.group(1).strip() if m else line)
-            for n, (i, _) in enumerate(indexed):
-                if n < len(clean_lines):
-                    results[i] = clean_lines[n]
-                    
+        for n, (i, _) in enumerate(indexed):
+            if n in parsed:
+                results[i] = parsed[n]
+
+        # A malformed batch response must not shift translations between
+        # bubbles. Retry only entries whose explicit number was missing.
+        for n, (i, text) in enumerate(indexed):
+            if n not in parsed:
+                results[i] = await translate_text(text, source_lang, target_lang, api_key, model)
+
         log.info(f"Groq batch translated {len(indexed)} texts")
     except Exception as e:
         err_msg = str(e)
         if hasattr(e, 'response') and e.response is not None:
             err_msg += f" | Body: {e.response.text}"
         log.error(f"Groq batch translation failed: {err_msg}. Model={api_model}")
-        for i, t in indexed:
-            try:
-                results[i] = await translate_text(t, source_lang, target_lang, api_key, model)
-            except Exception:
-                pass
+        # Provider/auth/model failures affect the whole batch. Do not repeat
+        # the same failed request once per balloon; the dispatcher performs
+        # one shared fallback pass below this engine.
     
     return results
 
@@ -198,3 +230,4 @@ async def cleanup():
     if _client is not None:
         await _client.aclose()
         _client = None
+    _resolved_models.clear()

@@ -1,6 +1,6 @@
 """
 Translation Module - Multi-provider async translation.
-Supports: MyMemory (free), Google Translate (free), LibreTranslate (self-hosted).
+Supports: MyMemory (free) and Google Translate (free).
 All providers use async HTTP for non-blocking I/O.
 """
 
@@ -51,8 +51,6 @@ class Translator:
         try:
             if self.settings.TRANSLATION_SERVICE == "google":
                 return await self._translate_google(text, source, target)
-            elif self.settings.TRANSLATION_SERVICE == "libretranslate":
-                return await self._translate_libre(text, source, target)
             else:
                 return await self._translate_mymemory(text, source, target)
         except Exception as e:
@@ -93,13 +91,3 @@ class Translator:
         if data and data[0]:
             return "".join(item[0] for item in data[0] if item[0])
         return text
-
-    async def _translate_libre(self, text: str, source: str, target: str) -> str:
-        """LibreTranslate (self-hosted)."""
-        resp = await self.client.post(
-            f"{self.settings.LIBRETRANSLATE_URL}/translate",
-            json={"q": text, "source": source, "target": target},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data.get("translatedText", text)

@@ -1,0 +1,18 @@
+# Llama.cpp params mapped from groq defaults (initial set)
+# Tune these in practice — some fields are semantic mappings, not 1:1
+temperature: 0.3
+top_p: 0.9
+n_predict: 256  # max tokens to generate
+repetition_penalty: 1.05
+presence_penalty: 0.0
+frequency_penalty: 0.0
+threads: 4
+ggml_quant: q4_0  # recommended starting quantization for speed/quality tradeoff
+prompt_template: |
+  Traduce el siguiente texto de japonés a español manteniendo tono coloquial y onomatopeyas:
+  ---
+  {{input}}
+notes: |
+  Estos valores son una traducción inicial desde configs/groq_params.yaml.
+  Ajustar 'threads' y 'ggml_quant' según hardware y latencia/accuracy deseada.
+  Para ejecutar benchmarks: see ../scripts/profile/llama_profile.ps1 and ../scripts/benchmark/benchmark_llama.py

@@ -1,0 +1,7 @@
+{% load static %}<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}MangaTranslator · Seguí la historia{% endblock %}</title>
+<link rel="stylesheet" href="{% static 'site.css' %}"><script src="{% static 'site.js' %}" defer></script></head>
+<body><header><a class="brand" href="/">M<span>↗</span> MangaTranslator</a><nav><a href="/#como">Cómo funciona</a><a href="/#planes">Precios</a>{% if user.is_authenticated %}<a class="button small" href="/account/">Mi cuenta</a>{% else %}<a href="/login/">Ingresar</a><a class="button small" href="/register/">Probar gratis</a>{% endif %}</nav></header>
+<main>{% for message in messages %}<p class="notice" role="status">{{ message }}</p>{% endfor %}{% block content %}{% endblock %}</main>
+<footer><span>MangaTranslator · Leé a tu ritmo.</span><div><a href="/privacy/">Privacidad</a><a href="/terms/">Condiciones</a><a href="/account/">Mi cuenta</a></div></footer></body></html>

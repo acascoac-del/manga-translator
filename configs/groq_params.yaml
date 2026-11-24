@@ -1,0 +1,19 @@
+# Placeholder of groq-like translation parameters to extract and refine
+temperature: 0.3
+top_p: 0.9
+beam: 1
+max_tokens: 256
+repetition_penalty: 1.05
+presence_penalty: 0.0
+frequency_penalty: 0.0
+prompt_template: |
+  Traduce el siguiente texto de japonés a español manteniendo tono coloquial y onomatopeyas:
+  ---
+  {{input}}
+preprocessing:
+  - normalize_unicode: true
+  - preserve_onomatopeyas: true
+postprocessing:
+  - restore_caps: true
+  - map_special_tokens: true
+notes: "Valores iniciales — reemplazar con parámetros exactos de groq tras extracción"
