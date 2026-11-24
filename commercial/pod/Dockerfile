@@ -10,6 +10,7 @@ COPY commercial/templates /srv/templates
 COPY commercial/static /srv/static
 COPY commercial/manage.py /srv/manage.py
 COPY commercial/runpod/handler.py /srv/runpod_worker/handler.py
+COPY app/ /app/app/
 COPY commercial/pod/ /opt/manga-pod/
 RUN sed -i 's/\r$//' /opt/manga-pod/start.sh
 COPY fonts/ /app/fonts/

@@ -7,7 +7,8 @@ export POSTGRES_HOST=127.0.0.1 POSTGRES_USER=manga POSTGRES_DB=manga
 export COMMERCIAL_DATA_DIR=/workspace/manga-data HF_HOME=/workspace/manga-models/hf
 export MODEL_DIR=/workspace/manga-models/weights
 export EASYOCR_MODULE_PATH=/workspace/manga-models/easyocr
-pg_bin="$(pg_config --bindir)"
+pg_binary=(/usr/lib/postgresql/*/bin/postgres)
+pg_bin="$(dirname "${pg_binary[0]}")"
 export POD_PG_BIN="$pg_bin"
 export POD_PG_DATA=/workspace/manga-postgres
 install -d -m 0700 -o postgres -g postgres "$POD_PG_DATA"

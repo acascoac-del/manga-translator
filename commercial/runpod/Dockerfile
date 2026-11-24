@@ -4,6 +4,7 @@ FROM ${ENGINE_IMAGE}
 USER root
 RUN pip install --no-cache-dir 'runpod>=1.7,<2'
 COPY commercial/runpod/ /app/commercial/runpod/
+COPY app/ /app/app/
 COPY fonts/ /app/fonts/
 ENV PYTHONPATH=/app
 ENV PRELOAD_LLAMACPP=0
